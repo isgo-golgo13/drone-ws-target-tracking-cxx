@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  ws-server:
+    build: ./ws-server
+    container_name: ws-server
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./certificates:/certs
+
+  ws-client:
+    build: ./ws-client
+    container_name: ws-client
+    depends_on:
+      - ws-server
+    volumes:
+      - ./certificates:/certs

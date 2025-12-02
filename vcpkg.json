@@ -1,0 +1,12 @@
+{
+  "name": "drone-ws-target-tracking",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "boost-beast",
+    "boost-asio",
+    "boost-cobalt",
+    "openssl",
+    "fmt",
+    "nlohmann-json"
+  ]
+}
