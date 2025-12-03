@@ -41,8 +41,9 @@ private:
     void run_server(std::stop_token st) {
         try {
             boost::asio::io_context ioc{1};
-             //WSClient client (ioc, addrConfjg) - AddrConfig (std::string_view : "localhost", short: port, std::filesystem::path : certs)
-            WSServer server(ioc, 8443, "certificates/server.pem", "certificates/server-key.pem");
+            
+            auto server_cfg = svckit::AddrConfig::FromEnvDefaults("0.0.0.0", 8443);
+            WSServer server(ioc, server_cfg);
             server.run();
 
             while (!st.stop_requested() && g_running.load()) {
@@ -59,8 +60,9 @@ private:
     void run_client(std::stop_token st) {
         try {
             boost::asio::io_context ioc{1};
-            //WSClient client (ioc, addrConfjg) - AddrConfig (std::string_view : "localhost", short: port, std::filesystem::path : certs)
-            WSClient client(ioc, "localhost", "8443", "certificates/server.pem");
+            
+            auto client_cfg = svckit::AddrConfig::FromEnvDefaults("localhost", 8443);
+            WSClient client(ioc, client_cfg);
             client.start("HELLO FROM CLIENT");
 
             while (!st.stop_requested() && g_running.load()) {

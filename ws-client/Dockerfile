@@ -14,6 +14,9 @@ RUN useradd -m appuser
 USER appuser
 WORKDIR /app
 
+ENV CERT_PATH=/certificates
+VOLUME ["/certificates"]
+
 COPY --from=builder /build/build/ws-client .
 
 CMD ["./ws-client"]

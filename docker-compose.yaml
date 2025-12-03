@@ -7,7 +7,7 @@ services:
     ports:
       - "8443:8443"
     volumes:
-      - ./certificates:/certs
+      - ./certificates:/certificates
 
   ws-client:
     build: ./ws-client
@@ -15,4 +15,4 @@ services:
     depends_on:
       - ws-server
     volumes:
-      - ./certificates:/certs
+      - ./certificates:/certificates

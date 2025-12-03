@@ -11,7 +11,7 @@ int main() {
         //
         // Configure client connection + TLS validation
         //
-        auto cfg = svckit::AddrConfig::FromEnvDefaults("host", port);
+        auto cfg = svckit::AddrConfig::FromEnvDefaults("localhost", port);
 
         WSClient client(ioc, cfg);
         client.start("CLIENT INITIAL MESSAGE");
