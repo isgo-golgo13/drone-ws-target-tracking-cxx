@@ -87,10 +87,10 @@ mkcert -cert-file certificates/server.pem -key-file certificates/server-key.pem 
 ## Building the Project Binariee
 
 ```shell
-cmake .. \
-    -G "Unix Makefiles" \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER=gcc-15 \
-    -DCMAKE_CXX_COMPILER=g++-15 \
-    -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain.cmake
+rm -rf build
+cmake -S . -B build \
+  -DCMAKE_TOOLCHAIN_FILE=./gcc15-toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build -j$(sysctl -n hw.ncpu)
 ```

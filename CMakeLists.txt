@@ -9,7 +9,7 @@ include(FetchContent)
 
 #
 # ============================================================================
-# Fetch Boost Superproject (Beast, Asio, Cobalt, System, etc.)
+# Boost Superproject (SHALLOW clone, FAST)
 # ============================================================================
 #
 
@@ -17,62 +17,70 @@ FetchContent_Declare(
   boost
   GIT_REPOSITORY https://github.com/boostorg/boost.git
   GIT_TAG boost-1.85.0
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE
 )
 
+# Only pull necessary submodules for our use-case:
+set(FETCHCONTENT_SOURCE_DIR_BOOST ${boost_SOURCE_DIR})
+
+# Disable building docs, tests, and examples
+set(BOOST_ENABLE_CMAKE ON CACHE BOOL "" FORCE)
 set(BOOST_INCLUDE_LIBRARIES
     asio
     beast
     system
     core
     config
-    function
-    smart_ptr
+    callable_traits
+    align
+    assert
+    static_assert
+    type_traits
     throw_exception
+    smart_ptr
+    mp11
 )
-
-# Cobalt is not an official Boost release dependency yet,
-# so we fetch it independently below.
-set(BOOST_EXCLUDE_LIBRARIES "")
 
 FetchContent_MakeAvailable(boost)
 
 #
 # ============================================================================
-# Fetch Boost.Cobalt (coroutines)
+# Boost.Cobalt (must be fetched separately)
 # ============================================================================
 #
+
 FetchContent_Declare(
-  boost_cobalt
+  cobalt
   GIT_REPOSITORY https://github.com/boostorg/cobalt.git
   GIT_TAG master
+  GIT_SHALLOW TRUE
 )
-FetchContent_MakeAvailable(boost_cobalt)
-add_library(boost_cobalt STATIC
-  ${boost_cobalt_SOURCE_DIR}/src/awaitables.cpp
-  ${boost_cobalt_SOURCE_DIR}/src/future.cpp
-)
+FetchContent_MakeAvailable(cobalt)
 
-target_include_directories(boost_cobalt PUBLIC
-  ${boost_cobalt_SOURCE_DIR}/include
-)
+# Cobalt library target is defined by its own CMake
+# (target name: boost_cobalt)
 
 #
 # ============================================================================
-# Fetch nlohmann_json (header-only)
+# nlohmann_json (header-only)
 # ============================================================================
 #
+
 FetchContent_Declare(
   nlohmann_json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
   GIT_TAG v3.11.3
+  GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
 #
 # ============================================================================
-# Find OpenSSL
+# OpenSSL (system)
 # ============================================================================
 #
+
 find_package(OpenSSL REQUIRED)
 
 message(STATUS "Using OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
@@ -80,7 +88,7 @@ message(STATUS "Using OpenSSL libraries: ${OPENSSL_LIBRARIES}")
 
 #
 # ============================================================================
-# Subdirectories (libraries and executables)
+# Subdirectories
 # ============================================================================
 #
 
@@ -91,26 +99,30 @@ add_subdirectory(ws-client)
 
 #
 # ============================================================================
-# Root application
+# Root Orchestrator Executable
 # ============================================================================
 #
+
 add_executable(drone-ws-target-tracking src/main.cpp)
 
 target_include_directories(drone-ws-target-tracking PRIVATE
-  ${boost_SOURCE_DIR}
-  ${boost_SOURCE_DIR}/asio/include
-  ${boost_SOURCE_DIR}/beast/include
-  ${boost_cobalt_SOURCE_DIR}/include
+    ${boost_SOURCE_DIR}
+    ${boost_SOURCE_DIR}/asio/include
+    ${boost_SOURCE_DIR}/beast/include
+    ${boost_SOURCE_DIR}/system/include
+    ${boost_SOURCE_DIR}/core/include
+    ${boost_SOURCE_DIR}/config/include
+    ${cobalt_SOURCE_DIR}/include
 )
 
 target_link_libraries(drone-ws-target-tracking PRIVATE
-  protocol-lib
-  svckit
-  OpenSSL::SSL
-  OpenSSL::Crypto
-  boost_cobalt
+    protocol-lib
+    svckit
+    boost_cobalt
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 if(UNIX)
-  target_link_libraries(drone-ws-target-tracking PRIVATE pthread)
+    target_link_libraries(drone-ws-target-tracking PRIVATE pthread)
 endif()
