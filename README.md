@@ -70,6 +70,11 @@ drone-ws-target-tracking-cxx
 ```
 
 
+## Architectural View
+
+1. `svckit::AddrConfig`
+
+A parameter object providing OCP (Open-Closed Principal) extension used at the ws-client and ws-server sevice components allowing future parameter extension into the `svckit::AddrConfig` struct and preserving API upgrades without disrupting existing application code referencing current and future versions. This avoids noisy constructor API signatures in the ws-client and ws-server service components.
 
 
 ## Generating TLS Certificates for the Client and Server
@@ -79,3 +84,13 @@ mkcert -install
 mkcert -cert-file certificates/server.pem -key-file certificates/server-key.pem localhost 127.0.0.1 ::1
 ```
 
+## Building the Project Binariee
+
+```shell
+cmake .. \
+    -G "Unix Makefiles" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=gcc-15 \
+    -DCMAKE_CXX_COMPILER=g++-15 \
+    -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain.cmake
+```
