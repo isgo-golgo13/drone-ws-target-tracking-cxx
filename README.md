@@ -87,10 +87,22 @@ mkcert -cert-file certificates/server.pem -key-file certificates/server-key.pem 
 ## Building the Project Binariee
 
 ```shell
+tar -xzf drone-ws-target-tracking-cxx.tar.gz
+cd drone-ws-target-tracking-cxx
+
+# Generate certs first
+mkdir -p certificates
+mkcert -install
+mkcert -cert-file certificates/server.pem -key-file certificates/server-key.pem localhost 127.0.0.1 ::1
+
+# Configure and build
 rm -rf build
+# GNU GCC 15 (ONLY - for Linux OS)
 cmake -S . -B build \
   -DCMAKE_TOOLCHAIN_FILE=./gcc15-toolchain.cmake \
   -DCMAKE_BUILD_TYPE=Release
+# CLANG (Mac OSX)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
 cmake --build build -j$(sysctl -n hw.ncpu)
 ```

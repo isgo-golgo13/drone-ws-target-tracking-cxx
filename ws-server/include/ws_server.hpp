@@ -2,8 +2,10 @@
 
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
-#include <boost/beast/websocket.hpp>
 #include <boost/beast/core.hpp>
+#include <boost/beast/ssl.hpp>
+#include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
 #include <boost/cobalt.hpp>
 #include <atomic>
 #include <memory>
@@ -12,9 +14,7 @@
 #include "protocol.hpp"
 #include "svc_addr_config.hpp"
 
-class WSServer :
-    public std::enable_shared_from_this<WSServer>,
-    public protocol::StrategyHandler
+class WSServer : public protocol::StrategyHandler
 {
 public:
     WSServer(boost::asio::io_context& ioc, const svckit::AddrConfig& cfg);
@@ -27,8 +27,6 @@ public:
     void onNormal(const protocol::Packet& p) override;
 
 private:
-    void accept_loop();
-
     boost::asio::io_context& ioc_;
     std::unique_ptr<boost::asio::ssl::context> ssl_ctx_;
     boost::asio::ip::tcp::acceptor acceptor_;
@@ -38,6 +36,6 @@ private:
     svckit::AddrConfig cfg_;
     protocol::ProtocolAPI api_;
 
-    boost::cobalt::promise<void>
-    handle_session(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> stream);
+    boost::cobalt::task<void> accept_loop();
+    boost::cobalt::task<void> handle_session(boost::asio::ip::tcp::socket socket);
 };

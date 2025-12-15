@@ -5,16 +5,16 @@ add_executable(ws-client
 
 target_include_directories(ws-client PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${boost_SOURCE_DIR}
-  ${boost_SOURCE_DIR}/asio/include
-  ${boost_SOURCE_DIR}/beast/include
-  ${boost_cobalt_SOURCE_DIR}/include
+  ${cobalt_SOURCE_DIR}/include
 )
 
 target_link_libraries(ws-client PRIVATE
+  Boost::beast
+  Boost::asio
   protocol-lib
   svckit
-  boost_cobalt
+  Boost::cobalt
+  fmt::fmt
   OpenSSL::SSL
   OpenSSL::Crypto
 )

@@ -10,7 +10,7 @@ int main() {
         //
         // Configure server address + TLS
         //
-        auto cfg = svckit::AddrConfig::FromEnvDefaults("0.0.0.0", port);
+        auto cfg = svckit::AddrConfig::FromEnvDefaults("0.0.0.0", 8443);
 
         WSServer server(ioc, cfg);
         server.run();

@@ -2,7 +2,6 @@
 #include <csignal>
 #include <atomic>
 #include <thread>
-#include <stop_token>
 #include <memory>
 
 #include "ws_server.hpp"
@@ -22,12 +21,12 @@ public:
     void run() {
         std::signal(SIGINT, sig_handler);
 
-        std::jthread server_thread([this](std::stop_token st){
-            run_server(st);
+        std::thread server_thread([this](){
+            run_server();
         });
 
-        std::jthread client_thread([this](std::stop_token st){
-            run_client(st);
+        std::thread client_thread([this](){
+            run_client();
         });
 
         while (g_running.load()) {
@@ -35,10 +34,13 @@ public:
         }
 
         std::cout << "Shutting down...\n";
+        
+        if (server_thread.joinable()) server_thread.join();
+        if (client_thread.joinable()) client_thread.join();
     }
 
 private:
-    void run_server(std::stop_token st) {
+    void run_server() {
         try {
             boost::asio::io_context ioc{1};
             
@@ -46,7 +48,7 @@ private:
             WSServer server(ioc, server_cfg);
             server.run();
 
-            while (!st.stop_requested() && g_running.load()) {
+            while (g_running.load()) {
                 ioc.run_for(std::chrono::milliseconds(50));
             }
 
@@ -57,7 +59,7 @@ private:
         }
     }
 
-    void run_client(std::stop_token st) {
+    void run_client() {
         try {
             boost::asio::io_context ioc{1};
             
@@ -65,7 +67,7 @@ private:
             WSClient client(ioc, client_cfg);
             client.start("HELLO FROM CLIENT");
 
-            while (!st.stop_requested() && g_running.load()) {
+            while (g_running.load()) {
                 ioc.run_for(std::chrono::milliseconds(50));
             }
 

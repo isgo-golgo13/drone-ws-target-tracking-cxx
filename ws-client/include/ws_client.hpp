@@ -3,7 +3,9 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/beast.hpp>
+#include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
 #include <boost/cobalt.hpp>
 
 #include <string>
@@ -13,9 +15,7 @@
 #include "protocol.hpp"
 #include "svc_addr_config.hpp"
 
-class WSClient :
-    public std::enable_shared_from_this<WSClient>,
-    public protocol::StrategyHandler
+class WSClient : public protocol::StrategyHandler
 {
 public:
     WSClient(boost::asio::io_context& ioc, const svckit::AddrConfig& cfg);

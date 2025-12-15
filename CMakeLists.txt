@@ -9,7 +9,7 @@ include(FetchContent)
 
 #
 # ============================================================================
-# Boost Superproject (SHALLOW clone, FAST)
+# Boost Superproject (includes Cobalt)
 # ============================================================================
 #
 
@@ -21,45 +21,9 @@ FetchContent_Declare(
   GIT_PROGRESS TRUE
 )
 
-# Only pull necessary submodules for our use-case:
-set(FETCHCONTENT_SOURCE_DIR_BOOST ${boost_SOURCE_DIR})
-
-# Disable building docs, tests, and examples
 set(BOOST_ENABLE_CMAKE ON CACHE BOOL "" FORCE)
-set(BOOST_INCLUDE_LIBRARIES
-    asio
-    beast
-    system
-    core
-    config
-    callable_traits
-    align
-    assert
-    static_assert
-    type_traits
-    throw_exception
-    smart_ptr
-    mp11
-)
 
 FetchContent_MakeAvailable(boost)
-
-#
-# ============================================================================
-# Boost.Cobalt (must be fetched separately)
-# ============================================================================
-#
-
-FetchContent_Declare(
-  cobalt
-  GIT_REPOSITORY https://github.com/boostorg/cobalt.git
-  GIT_TAG master
-  GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(cobalt)
-
-# Cobalt library target is defined by its own CMake
-# (target name: boost_cobalt)
 
 #
 # ============================================================================
@@ -74,6 +38,20 @@ FetchContent_Declare(
   GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(nlohmann_json)
+
+#
+# ============================================================================
+# fmt (required by protocol)
+# ============================================================================
+#
+
+FetchContent_Declare(
+  fmt
+  GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+  GIT_TAG 10.2.1
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(fmt)
 
 #
 # ============================================================================
@@ -106,19 +84,16 @@ add_subdirectory(ws-client)
 add_executable(drone-ws-target-tracking src/main.cpp)
 
 target_include_directories(drone-ws-target-tracking PRIVATE
-    ${boost_SOURCE_DIR}
-    ${boost_SOURCE_DIR}/asio/include
-    ${boost_SOURCE_DIR}/beast/include
-    ${boost_SOURCE_DIR}/system/include
-    ${boost_SOURCE_DIR}/core/include
-    ${boost_SOURCE_DIR}/config/include
-    ${cobalt_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/ws-server/include
+    ${CMAKE_SOURCE_DIR}/ws-client/include
 )
 
 target_link_libraries(drone-ws-target-tracking PRIVATE
+    Boost::beast
+    Boost::asio
+    Boost::cobalt
     protocol-lib
     svckit
-    boost_cobalt
     OpenSSL::SSL
     OpenSSL::Crypto
 )

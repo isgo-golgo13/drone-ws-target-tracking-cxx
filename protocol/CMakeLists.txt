@@ -10,4 +10,5 @@ target_include_directories(protocol-lib PUBLIC
 target_link_libraries(protocol-lib
     PUBLIC
       nlohmann_json::nlohmann_json
+      fmt::fmt
 )

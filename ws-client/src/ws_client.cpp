@@ -15,15 +15,11 @@ WSClient::WSClient(boost::asio::io_context& ioc,
     , ssl_ctx_(std::make_unique<ssl::context>(ssl::context::tlsv12_client))
 {
     ssl_ctx_->set_verify_mode(ssl::verify_peer);
-    ssl_ctx_->load_verify_file(cfg_.ca_file);
+    ssl_ctx_->load_verify_file(cfg_.ca_file.string());
 }
 
-
-
 void WSClient::start(const std::string& initial_message) {
-    asio::co_spawn(ioc_,
-        run_session(initial_message),
-        asio::detached);
+    boost::cobalt::spawn(ioc_, run_session(initial_message), asio::detached);
 }
 
 void WSClient::stop() {
@@ -41,7 +37,6 @@ void WSClient::onNormal(const protocol::Packet& p) {
 
 void WSClient::onUrgentRed(const protocol::Packet& p) {
     fmt::print("[CLIENT] RED ALERT: Drone target received.\n");
-
     auto s = std::string(p.payload.begin(), p.payload.end());
     fmt::print("[CLIENT] Payload: {}\n", s);
 }
@@ -53,52 +48,58 @@ void WSClient::onUrgentRed(const protocol::Packet& p) {
 boost::cobalt::task<void> WSClient::run_session(std::string initial) {
     try {
         tcp::resolver resolver(ioc_);
-        auto results = co_await resolver.async_resolve(cfg_.host, std::to_string(cfg_.port),
-                                                       boost::cobalt::use_op);
+        auto results = co_await resolver.async_resolve(
+            cfg_.host, 
+            std::to_string(cfg_.port),
+            boost::cobalt::use_op);
 
+        // Create SSL stream over TCP socket
+        ssl::stream<tcp::socket> ssl_stream(ioc_, *ssl_ctx_);
 
-        beast::error_code ec;
-        beast::ssl_stream<beast::tcp_stream> stream(ioc_, *ssl_ctx_);
-
-        co_await beast::get_lowest_layer(stream).async_connect(
+        // Connect TCP
+        co_await beast::get_lowest_layer(ssl_stream).async_connect(
             *results.begin(),
-            boost::cobalt::use_op(ec)
+            boost::cobalt::use_op
         );
-        if (ec) co_return;
 
-        co_await stream.async_handshake(ssl::stream_base::client,
-                                        boost::cobalt::use_op(ec));
-        if (ec) co_return;
+        // SSL handshake
+        co_await ssl_stream.async_handshake(ssl::stream_base::client,
+                                            boost::cobalt::use_op);
 
-        websocket::stream<beast::ssl_stream<beast::tcp_stream>> ws(std::move(stream));
+        // WebSocket stream over SSL
+        websocket::stream<ssl::stream<tcp::socket>> ws(std::move(ssl_stream));
 
         ws.set_option(websocket::stream_base::timeout::suggested(beast::role_type::client));
 
-        co_await ws.async_handshake(host_, "/", boost::cobalt::use_op(ec));
-        if (ec) co_return;
+        co_await ws.async_handshake(cfg_.host, "/", boost::cobalt::use_op);
 
-        fmt::print("[CLIENT] Connected to {}:{}\n", host_, port_);
+        fmt::print("[CLIENT] Connected to {}:{}\n", cfg_.host, cfg_.port);
 
         // Send initial packet
         protocol::Packet pkt = api_.make_packet(initial, protocol::Urgency::GREEN);
-        co_await ws.async_write(asio::buffer(pkt.payload), boost::cobalt::use_op(ec));
+        co_await ws.async_write(asio::buffer(pkt.payload), boost::cobalt::use_op);
 
         // Read loop
         while (running_) {
             beast::flat_buffer buffer;
 
-            co_await ws.async_read(buffer, boost::cobalt::use_op(ec));
-            if (ec) break;
+            auto [ec, bytes] = co_await ws.async_read(buffer, 
+                asio::as_tuple(boost::cobalt::use_op));
+            
+            if (ec) {
+                if (ec != websocket::error::closed)
+                    fmt::print("[CLIENT] Read error: {}\n", ec.message());
+                break;
+            }
 
             std::string msg = beast::buffers_to_string(buffer.data());
-
             protocol::Packet rx = api_.make_packet(msg, protocol::Urgency::GREEN);
             api_.dispatch(rx, *this);
         }
 
         fmt::print("[CLIENT] Closing WS\n");
         co_await ws.async_close(websocket::close_code::normal,
-                                boost::cobalt::use_op(ec));
+                                asio::as_tuple(boost::cobalt::use_op));
     }
     catch (const std::exception& e) {
         std::cerr << "[CLIENT] Exception: " << e.what() << "\n";

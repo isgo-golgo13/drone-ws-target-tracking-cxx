@@ -8,7 +8,7 @@ Packet ProtocolAPI::make_packet(const std::string& msg, Urgency u) {
     pkt.header.type = 1;
     pkt.header.urgent = static_cast<uint16_t>(u);
     pkt.header.reserved = 0;
-    pkt.header.length = msg.size();
+    pkt.header.length = static_cast<uint32_t>(msg.size());
     pkt.payload.assign(msg.begin(), msg.end());
     return pkt;
 }

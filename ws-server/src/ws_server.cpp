@@ -21,8 +21,8 @@ WSServer::WSServer(boost::asio::io_context& ioc,
         ssl::context::no_sslv2 |
         ssl::context::single_dh_use);
 
-    ssl_ctx_->use_certificate_file(cfg.cert_file, ssl::context::pem);
-    ssl_ctx_->use_private_key_file(cfg.key_file, ssl::context::pem);
+    ssl_ctx_->use_certificate_file(cfg_.cert_file.string(), ssl::context::pem);
+    ssl_ctx_->use_private_key_file(cfg_.key_file.string(), ssl::context::pem);
 
     tcp::endpoint ep{tcp::v4(), cfg_.port};
     acceptor_.open(ep.protocol());
@@ -31,10 +31,9 @@ WSServer::WSServer(boost::asio::io_context& ioc,
     acceptor_.listen();
 }
 
-
 void WSServer::run() {
-    std::cout << "Server listening on 0.0.0.0:" << port_ << "\n";
-    accept_loop();
+    fmt::print("Server listening on 0.0.0.0:{}\n", cfg_.port);
+    boost::cobalt::spawn(ioc_, accept_loop(), asio::detached);
 }
 
 void WSServer::stop() {
@@ -43,62 +42,64 @@ void WSServer::stop() {
     acceptor_.close(ec);
 }
 
-void WSServer::accept_loop() {
-    asio::co_spawn(ioc_,
-        [this]() -> boost::cobalt::task<void> {
-            while (running_) {
-                beast::error_code ec;
-                tcp::socket socket(ioc_);
-                acceptor_.accept(socket, ec);
-                if (ec) {
-                    co_await boost::cobalt::sleep_for(std::chrono::milliseconds(50));
-                    continue;
-                }
+boost::cobalt::task<void> WSServer::accept_loop() {
+    while (running_) {
+        auto [ec, socket] = co_await acceptor_.async_accept(
+            asio::as_tuple(boost::cobalt::use_op));
+        
+        if (ec) {
+            if (running_)
+                fmt::print("[SERVER] Accept error: {}\n", ec.message());
+            continue;
+        }
 
-                auto stream = ssl::stream<tcp::socket>(std::move(socket), *ssl_ctx_);
-                asio::co_spawn(ioc_,
-                    handle_session(std::move(stream)),
-                    asio::detached);
-            }
-        },
-        asio::detached);
+        boost::cobalt::spawn(ioc_, handle_session(std::move(socket)), asio::detached);
+    }
 }
 
-boost::cobalt::promise<void> WSServer::handle_session(
-    ssl::stream<tcp::socket> stream)
-{
-    beast::error_code ec;
-    co_await asio::async_handshake(stream, ssl::stream_base::server,
-                                   boost::cobalt::use_op(ec));
+boost::cobalt::task<void> WSServer::handle_session(tcp::socket socket) {
+    try {
+        // Create SSL stream
+        ssl::stream<tcp::socket> ssl_stream(std::move(socket), *ssl_ctx_);
 
-    if (ec) co_return;
+        // SSL handshake
+        co_await ssl_stream.async_handshake(ssl::stream_base::server,
+                                            boost::cobalt::use_op);
 
-    websocket::stream<ssl::stream<tcp::socket>> ws(std::move(stream));
+        // WebSocket stream over SSL
+        websocket::stream<ssl::stream<tcp::socket>> ws(std::move(ssl_stream));
 
-    ws.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
+        ws.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
 
-    co_await ws.async_accept(boost::cobalt::use_op(ec));
-    if (ec) co_return;
+        co_await ws.async_accept(boost::cobalt::use_op);
 
-    std::cout << "[SERVER] WebSocket session opened\n";
+        fmt::print("[SERVER] WebSocket session opened\n");
 
-    while (running_) {
-        beast::flat_buffer buffer;
+        while (running_) {
+            beast::flat_buffer buffer;
 
-        co_await ws.async_read(buffer, boost::cobalt::use_op(ec));
-        if (ec) break;
+            auto [ec, bytes] = co_await ws.async_read(buffer,
+                asio::as_tuple(boost::cobalt::use_op));
 
-        std::string msg = beast::buffers_to_string(buffer.data());
+            if (ec) {
+                if (ec != websocket::error::closed)
+                    fmt::print("[SERVER] Read error: {}\n", ec.message());
+                break;
+            }
 
-        protocol::Packet pkt = api_.make_packet(msg, protocol::Urgency::GREEN);
+            std::string msg = beast::buffers_to_string(buffer.data());
 
-        api_.dispatch(pkt, *this);
+            protocol::Packet pkt = api_.make_packet(msg, protocol::Urgency::GREEN);
+            api_.dispatch(pkt, *this);
 
-        co_await ws.async_write(asio::buffer(msg), boost::cobalt::use_op(ec));
-        if (ec) break;
+            co_await ws.async_write(asio::buffer(msg), boost::cobalt::use_op);
+        }
+
+        fmt::print("[SERVER] WebSocket session closed\n");
     }
-
-    std::cout << "[SERVER] WebSocket session closed\n";
+    catch (const std::exception& e) {
+        fmt::print("[SERVER] Session exception: {}\n", e.what());
+    }
 }
 
 //
@@ -111,7 +112,7 @@ void WSServer::onNormal(const protocol::Packet& p) {
 }
 
 void WSServer::onUrgentRed(const protocol::Packet& p) {
-    fmt::print("[SERVER] URGENT RED — STREAMING DRONE TARGET DATA\n");
+    fmt::print("[SERVER] URGENT RED - STREAMING DRONE TARGET DATA\n");
 
     // SSE-like stream simulation
     std::thread([p](){
